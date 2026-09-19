@@ -1,0 +1,2 @@
+# MongoDB models: users, leads, agents, workflows, workflowExecutions, followUpTasks, activities
+# Do not add a separate analytics collection.
