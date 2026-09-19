@@ -143,6 +143,11 @@ export const profileApi = {
   updateProfile: (payload) => request('/profile', { method: 'PUT', body: payload }),
 }
 
+// AI Provider Status API
+export const aiApi = {
+  getStatus: () => request('/ai/status', { method: 'GET' }),
+}
+
 export default {
   getToken,
   setToken,
@@ -154,4 +159,5 @@ export default {
   dashboardApi,
   analyticsApi,
   profileApi,
+  aiApi,
 }

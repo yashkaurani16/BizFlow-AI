@@ -1,7 +1,11 @@
 import cors from 'cors'
+import dotenv from 'dotenv'
 import express from 'express'
+
+dotenv.config()
 import { errorHandler, notFoundHandler } from './middleware/errorMiddleware.js'
 import agentsRoutes from './routes/agentsRoutes.js'
+import aiRoutes from './routes/aiRoutes.js'
 import analyticsRoutes from './routes/analyticsRoutes.js'
 import authRoutes from './routes/authRoutes.js'
 import dashboardRoutes from './routes/dashboardRoutes.js'
@@ -40,6 +44,7 @@ app.use(express.urlencoded({ extended: true }))
 // API Routes
 app.use('/api', healthRoutes)
 app.use('/api/auth', authRoutes)
+app.use('/api/ai', aiRoutes)
 app.use('/api/leads', leadsRoutes)
 app.use('/api/agents', agentsRoutes)
 app.use('/api/workflows', workflowsRoutes)

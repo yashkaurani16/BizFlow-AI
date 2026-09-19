@@ -63,6 +63,16 @@ const leadSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    aiMetadata: {
+      type: mongoose.Schema.Types.Mixed,
+      default: () => ({
+        isRealAI: false,
+        provider: 'fallback',
+        model: 'bounded-fallback-v1',
+        leadQuality: 'Medium',
+        humanReviewRequired: true,
+      }),
+    },
     owner: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

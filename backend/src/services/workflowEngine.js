@@ -15,15 +15,17 @@ import {
   getDevUserTasks,
   getDevUserWorkflows,
 } from '../utils/devStore.js'
+import { analyzeLead } from './ai/aiService.js'
 
 /**
  * Executes the fixed MVP New Lead Follow-Up workflow:
  * 1. New Lead (already persisted)
- * 2. Analyze Lead (bounded mock AI analysis)
- * 3. Save Analysis & Suggested Next Step to CRM Lead
- * 4. Create Follow-Up Task
- * 5. Record Activity
- * 6. Record Workflow Execution Status
+ * 2. Validate Assigned Agent (inactive agents cannot perform AI processing)
+ * 3. Analyze Lead via dedicated AI Service (real provider or safe bounded fallback)
+ * 4. Save Analysis & Suggested Next Step to CRM Lead
+ * 5. Create Follow-Up Task
+ * 6. Record Activity (flagging human review required)
+ * 7. Record Workflow Execution Status
  *
  * If analysis fails, the lead is preserved and error is recorded.
  */
@@ -31,7 +33,7 @@ export const executeNewLeadWorkflow = async (lead, userId) => {
   const isDbConnected = mongoose.connection.readyState === 1
   const executionStartTime = new Date()
 
-  // Find or determine the assigned agent (default to active Sales Agent)
+  // Find or determine the assigned agent (default to Sales Agent)
   let assignedAgent = null
   let workflow = null
 
@@ -49,34 +51,107 @@ export const executeNewLeadWorkflow = async (lead, userId) => {
         assignedAgent = await Agent.findOne({
           owner: userId,
           type: { $in: ['Sales', 'Sales Agent'] },
-          status: 'Active',
         })
       }
     } else {
       const devWorkflows = getDevUserWorkflows(userId)
       workflow = devWorkflows.find((w) => w.status === 'Active') || devWorkflows[0] || null
       const devAgents = getDevUserAgents(userId)
-      assignedAgent = devAgents.find((a) => a.type === 'Sales' && a.status === 'Active') || devAgents[0] || null
+      assignedAgent = devAgents.find((a) => a.type === 'Sales') || devAgents[0] || null
     }
   } catch (err) {
     console.warn('[WorkflowEngine] Could not lookup agent/workflow:', err.message)
   }
 
+  // Enforce Section 6: Inactive agent check
+  if (assignedAgent && assignedAgent.status !== 'Active') {
+    const skipReason = `AI processing skipped: assigned agent "${assignedAgent.name}" is Inactive`
+    console.log(`[WorkflowEngine] ${skipReason}`)
+
+    if (isDbConnected) {
+      await WorkflowExecution.create({
+        workflow: workflow ? workflow._id : undefined,
+        lead: lead._id,
+        agent: assignedAgent._id,
+        status: 'Failed',
+        startedAt: executionStartTime,
+        completedAt: new Date(),
+        error: skipReason,
+      })
+
+      await Activity.create({
+        type: 'workflow_skipped',
+        title: `AI analysis skipped for ${lead.name}`,
+        description: skipReason,
+        lead: lead._id,
+        agent: assignedAgent._id,
+        status: 'Failed',
+        owner: userId,
+      })
+    } else {
+      const skipAct = {
+        _id: new mongoose.Types.ObjectId(),
+        type: 'workflow_skipped',
+        title: `AI analysis skipped for ${lead.name}`,
+        description: skipReason,
+        lead: lead._id,
+        agent: assignedAgent ? assignedAgent._id : undefined,
+        status: 'Failed',
+        owner: userId,
+        createdAt: new Date(),
+      }
+      getDevUserActivities(userId).unshift(skipAct)
+      getDevUserExecutions(userId).unshift({
+        _id: new mongoose.Types.ObjectId(),
+        workflow: workflow ? workflow._id : undefined,
+        lead: { _id: lead._id, name: lead.name, email: lead.email },
+        agent: { _id: assignedAgent._id, name: assignedAgent.name, type: assignedAgent.type },
+        status: 'Failed',
+        startedAt: executionStartTime,
+        completedAt: new Date(),
+        error: skipReason,
+        owner: userId,
+        createdAt: new Date(),
+      })
+    }
+
+    return {
+      success: false,
+      lead,
+      error: skipReason,
+      skipped: true,
+    }
+  }
+
   const agentName = assignedAgent ? assignedAgent.name : 'Sales Agent'
 
   try {
-    // 2. Generate Bounded AI Analysis (Mock / Configuration-level per MVP policy)
-    const analysisText = `Lead qualified based on company profile (${lead.company || 'Direct'}). Expressed high intent for workflow automation. Potential value: Tier-1 enterprise account.`
-    const suggestedNextStep = `Schedule a 20-minute discovery call with ${lead.name} to demonstrate tailored business automations.`
+    // 3. Analyze Lead via dedicated AI Service (real provider or bounded fallback)
+    const aiResult = await analyzeLead(lead, assignedAgent)
 
-    // 3. Save Analysis to CRM Lead
+    const analysisText = aiResult.summary || 'Lead analyzed.'
+    const suggestedNextStep = aiResult.suggestedNextStep || 'Review lead details.'
+    const isRealAI = Boolean(aiResult.isRealAI)
+    const providerTag = isRealAI ? 'AI Provider Connected' : 'AI Provider Unavailable — Fallback Analysis'
+
+    // 4. Save Analysis & AI Metadata to CRM Lead
     lead.aiAnalysis = analysisText
     lead.suggestedNextStep = suggestedNextStep
+    lead.aiMetadata = {
+      isRealAI,
+      provider: aiResult.provider || 'fallback',
+      model: aiResult.model || 'bounded-fallback-v1',
+      leadQuality: aiResult.leadQuality || 'Medium',
+      reasoningSummary: aiResult.reasoningSummary || '',
+      humanReviewRequired: true,
+      analyzedAt: aiResult.analyzedAt || new Date().toISOString(),
+    }
+
     if (isDbConnected && typeof lead.save === 'function') {
       await lead.save()
     }
 
-    // 4. Create Follow-Up Task
+    // 5. Create Follow-Up Task
     const dueDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000) // 2 days from now
     let task = null
 
@@ -106,15 +181,18 @@ export const executeNewLeadWorkflow = async (lead, userId) => {
       getDevUserTasks(userId).unshift(task)
     }
 
-    // 5. Record Activity
+    // 6. Record Activity
     let activityAnalyzed = null
     let activityTask = null
+
+    const activityTitle = `Lead analyzed by ${agentName} [${isRealAI ? 'Live AI' : 'Fallback'}]`
+    const activityDesc = `${analysisText} (${providerTag}) — Human Review Required.`
 
     if (isDbConnected) {
       activityAnalyzed = await Activity.create({
         type: 'lead_analyzed',
-        title: `Lead analyzed by ${agentName}`,
-        description: analysisText,
+        title: activityTitle,
+        description: activityDesc,
         lead: lead._id,
         agent: assignedAgent ? assignedAgent._id : undefined,
         workflow: workflow ? workflow._id : undefined,
@@ -125,7 +203,7 @@ export const executeNewLeadWorkflow = async (lead, userId) => {
       activityTask = await Activity.create({
         type: 'task_created',
         title: `Follow-up task created: ${task.title}`,
-        description: `Due on ${dueDate.toLocaleDateString()}`,
+        description: `Due on ${dueDate.toLocaleDateString()} — Human Review Required.`,
         lead: lead._id,
         agent: assignedAgent ? assignedAgent._id : undefined,
         status: 'New',
@@ -135,8 +213,8 @@ export const executeNewLeadWorkflow = async (lead, userId) => {
       activityAnalyzed = {
         _id: new mongoose.Types.ObjectId(),
         type: 'lead_analyzed',
-        title: `Lead analyzed by ${agentName}`,
-        description: analysisText,
+        title: activityTitle,
+        description: activityDesc,
         lead: lead._id,
         agent: assignedAgent ? assignedAgent._id : undefined,
         workflow: workflow ? workflow._id : undefined,
@@ -148,7 +226,7 @@ export const executeNewLeadWorkflow = async (lead, userId) => {
         _id: new mongoose.Types.ObjectId(),
         type: 'task_created',
         title: `Follow-up task created: ${task.title}`,
-        description: `Due on ${dueDate.toLocaleDateString()}`,
+        description: `Due on ${dueDate.toLocaleDateString()} — Human Review Required.`,
         lead: lead._id,
         agent: assignedAgent ? assignedAgent._id : undefined,
         status: 'New',
@@ -225,6 +303,30 @@ export const executeNewLeadWorkflow = async (lead, userId) => {
       } catch (logErr) {
         console.error('[WorkflowEngine] Failed to record error execution:', logErr.message)
       }
+    } else {
+      const failAct = {
+        _id: new mongoose.Types.ObjectId(),
+        type: 'workflow_failed',
+        title: `Workflow execution failed for ${lead.name}`,
+        description: error.message,
+        lead: lead._id,
+        status: 'Failed',
+        owner: userId,
+        createdAt: new Date(),
+      }
+      getDevUserActivities(userId).unshift(failAct)
+      getDevUserExecutions(userId).unshift({
+        _id: new mongoose.Types.ObjectId(),
+        workflow: workflow ? workflow._id : undefined,
+        lead: { _id: lead._id, name: lead.name, email: lead.email },
+        agent: assignedAgent ? { _id: assignedAgent._id, name: assignedAgent.name } : undefined,
+        status: 'Failed',
+        startedAt: executionStartTime,
+        completedAt: new Date(),
+        error: error.message,
+        owner: userId,
+        createdAt: new Date(),
+      })
     }
 
     return {

@@ -5,9 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "test": "node tests/geminiStep18.test.js",
+    "test:regression": "node tests/step18FullRegression.test.js"
   },
   "dependencies": {
+    "@google/genai": "^2.23.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",

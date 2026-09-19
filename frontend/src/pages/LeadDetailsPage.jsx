@@ -90,14 +90,29 @@ function LeadDetailsPage() {
         <div className="details-side">
           <SectionCard title="AI Analysis">
             {lead.aiAnalysis.status === 'pending' ? (
-              <p className="muted-copy">Analysis pending. A real AI provider is not connected.</p>
+              <p className="muted-copy">Analysis pending. Evaluating lead qualification...</p>
             ) : lead.aiAnalysis.status === 'failed' ? (
               <Alert tone="error">
-                Mock analysis failed. The lead was still saved. Integration will be connected during the AI
-                integration stage.
+                AI analysis encountered an issue. The lead was still safely saved. A human representative can review and qualify this lead manually.
               </Alert>
             ) : (
-              <p>{lead.aiAnalysis.summary}</p>
+              <div className="lead-ai-analysis-block">
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap' }}>
+                  <span className={`badge ${lead.aiMetadata?.isRealAI ? 'badge-success' : 'badge-neutral'}`}>
+                    {lead.aiMetadata?.isRealAI ? 'AI Provider Connected' : 'AI Provider Unavailable — Fallback Analysis'}
+                  </span>
+                  <span className="badge badge-warning">Human Review Required</span>
+                  {lead.aiMetadata?.leadQuality && (
+                    <span className="badge badge-info">Quality: {lead.aiMetadata.leadQuality}</span>
+                  )}
+                </div>
+                <p>{lead.aiAnalysis.summary}</p>
+                {lead.aiMetadata?.reasoningSummary && (
+                  <p className="muted-copy" style={{ fontSize: '0.85rem', marginTop: '8px' }}>
+                    <strong>Reasoning:</strong> {lead.aiMetadata.reasoningSummary}
+                  </p>
+                )}
+              </div>
             )}
           </SectionCard>
 

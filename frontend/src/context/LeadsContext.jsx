@@ -51,11 +51,21 @@ function normalizeLead(lead) {
     status: a.status || 'Active',
   }))
 
+  const aiMetadata = lead.aiMetadata || {
+    isRealAI: Boolean(typeof lead.aiAnalysis === 'object' && lead.aiAnalysis?.isRealAI),
+    provider: lead.aiMetadata?.provider || 'fallback',
+    model: lead.aiMetadata?.model || 'bounded-fallback-v1',
+    leadQuality: lead.aiMetadata?.leadQuality || 'Medium',
+    reasoningSummary: lead.aiMetadata?.reasoningSummary || '',
+    humanReviewRequired: true,
+  }
+
   return {
     ...lead,
     id,
     createdLabel,
     aiAnalysis: aiAnalysisObj,
+    aiMetadata,
     suggestedNextStep: lead.suggestedNextStep || '',
     followUpTask: followUpTaskObj,
     activities,
