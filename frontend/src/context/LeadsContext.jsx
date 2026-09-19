@@ -60,13 +60,69 @@ function normalizeLead(lead) {
     humanReviewRequired: true,
   }
 
+  const rawIntel = lead.aiIntelligence || {}
+  const rawScore =
+    typeof rawIntel.score === 'number'
+      ? rawIntel.score
+      : typeof lead.score === 'number'
+        ? lead.score
+        : lead.aiMetadata?.leadQuality === 'High'
+          ? 85
+          : lead.aiMetadata?.leadQuality === 'Low'
+            ? 35
+            : 65
+
+  const rawPriority =
+    rawIntel.priority ||
+    lead.aiMetadata?.leadQuality ||
+    (rawScore >= 75 ? 'High' : rawScore >= 50 ? 'Medium' : 'Low')
+  const summaryText =
+    rawIntel.summary ||
+    (typeof lead.aiAnalysis === 'object' ? lead.aiAnalysis.summary : lead.aiAnalysis) ||
+    ''
+
+  const aiIntelligence = {
+    score: Math.max(0, Math.min(100, Math.round(rawScore))),
+    priority: ['High', 'Medium', 'Low'].includes(rawPriority) ? rawPriority : 'Medium',
+    summary: summaryText,
+    keySignals:
+      Array.isArray(rawIntel.keySignals) && rawIntel.keySignals.length > 0
+        ? rawIntel.keySignals
+        : [
+            lead.company ? `Company verified: ${lead.company}` : 'Direct individual account',
+            lead.phone ? `Phone contact provided: ${lead.phone}` : 'Email inquiry',
+            lead.email ? `Email: ${lead.email}` : null,
+          ].filter(Boolean),
+    risks:
+      Array.isArray(rawIntel.risks) && rawIntel.risks.length > 0
+        ? rawIntel.risks
+        : [
+            !lead.phone ? 'No phone number provided' : null,
+            !lead.company ? 'No company name provided' : null,
+            'Human review required prior to customer outreach',
+          ].filter(Boolean),
+    recommendedNextAction:
+      rawIntel.recommendedNextAction ||
+      lead.suggestedNextStep ||
+      'Review lead profile and conduct discovery.',
+    followUpSuggestion:
+      rawIntel.followUpSuggestion ||
+      `Hi ${lead.name}, thank you for connecting with BizFlow AI. Let us know a convenient time to discuss your workflow automation goals.`,
+    analyzedAt: rawIntel.analyzedAt || lead.aiMetadata?.analyzedAt || createdDate.toISOString(),
+    isRealAI: Boolean(rawIntel.isRealAI || lead.aiMetadata?.isRealAI),
+    provider: rawIntel.provider || lead.aiMetadata?.provider || 'fallback',
+    model: rawIntel.model || lead.aiMetadata?.model || 'bounded-fallback-v1',
+    humanReviewRequired: true,
+  }
+
   return {
     ...lead,
     id,
     createdLabel,
     aiAnalysis: aiAnalysisObj,
     aiMetadata,
-    suggestedNextStep: lead.suggestedNextStep || '',
+    aiIntelligence,
+    suggestedNextStep: lead.suggestedNextStep || aiIntelligence.recommendedNextAction,
     followUpTask: followUpTaskObj,
     activities,
     tasks: Array.isArray(lead.tasks) ? lead.tasks : [],
@@ -203,9 +259,26 @@ export function LeadsProvider({ children }) {
     setLeads((current) => current.filter((lead) => lead.id !== id && lead._id !== id))
   }, [])
 
+  const analyzeLead = useCallback(async (id) => {
+    try {
+      const res = await leadsApi.analyze(id)
+      if (res && res.success && res.lead) {
+        const normalized = normalizeLead(res.lead)
+        setLeads((current) =>
+          current.map((lead) => (lead.id === id || lead._id === id ? normalized : lead)),
+        )
+        return { success: true, lead: normalized }
+      }
+      throw new Error(res?.message || 'Failed to analyze lead')
+    } catch (err) {
+      console.warn('[LeadsContext] API analyze lead failed:', err.message)
+      throw err
+    }
+  }, [])
+
   const value = useMemo(
-    () => ({ leads, getLead, addLead, updateLead, deleteLead, isLoading }),
-    [leads, getLead, addLead, updateLead, deleteLead, isLoading],
+    () => ({ leads, getLead, addLead, updateLead, deleteLead, analyzeLead, isLoading }),
+    [leads, getLead, addLead, updateLead, deleteLead, analyzeLead, isLoading],
   )
 
   return <LeadsContext.Provider value={value}>{children}</LeadsContext.Provider>

@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import {
+  analyzeLeadAction,
   createLead,
   deleteLead,
   getLeadById,
@@ -17,5 +18,6 @@ router.post('/', createLead)
 router.get('/:id', getLeadById)
 router.put('/:id', updateLead)
 router.delete('/:id', deleteLead)
+router.post('/:id/analyze', analyzeLeadAction)
 
 export default router

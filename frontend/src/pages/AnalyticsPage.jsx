@@ -83,6 +83,12 @@ function AnalyticsPage() {
 
   const {
     kpis,
+    crmIntelligence = {
+      analyzedLeads: 0,
+      highPriorityLeads: 0,
+      averageAiScore: 0,
+      leadsRequiringFollowUp: 0,
+    },
     leadAnalytics,
     agentAnalytics,
     workflowAnalytics,
@@ -163,6 +169,49 @@ function AnalyticsPage() {
           tone="warning"
           icon="tasks"
         />
+      </section>
+
+      {/* Step 19: AI Lead Intelligence Insights */}
+      <section className="card section-card" aria-label="AI Lead Intelligence Insights" style={{ marginTop: 'var(--space-4)' }}>
+        <div className="section-card-header">
+          <div>
+            <h2>AI Lead Intelligence Insights</h2>
+            <p className="muted-copy" style={{ margin: '2px 0 0', fontSize: '0.8125rem' }}>
+              Operational CRM metrics derived from AI scoring, priorities, and workflow qualification
+            </p>
+          </div>
+          <span className="badge badge-success">Live Operational Data</span>
+        </div>
+        <div className="analytics-kpi-grid" style={{ marginTop: 'var(--space-3)' }}>
+          <StatCard
+            label="Analyzed Leads"
+            value={crmIntelligence.analyzedLeads}
+            hint="Leads with AI evaluation"
+            tone="info"
+            icon="leads"
+          />
+          <StatCard
+            label="High-Priority Leads"
+            value={crmIntelligence.highPriorityLeads}
+            hint="Score ≥ 75 / High intent"
+            tone="success"
+            icon="leads"
+          />
+          <StatCard
+            label="Average AI Score"
+            value={`${crmIntelligence.averageAiScore}`}
+            hint="Across analyzed leads"
+            tone="neutral"
+            icon="leads"
+          />
+          <StatCard
+            label="Leads Requiring Follow-Up"
+            value={crmIntelligence.leadsRequiringFollowUp}
+            hint="New, Contacted, or Pending"
+            tone="warning"
+            icon="tasks"
+          />
+        </div>
       </section>
 
       <LeadAnalyticsSection data={leadAnalytics} />

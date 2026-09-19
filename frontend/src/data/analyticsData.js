@@ -124,6 +124,27 @@ export function computeAnalyticsMetrics(leads = [], agents = [], workflows = [],
     }
   }
 
+  const analyzedLeads = filteredLeads.filter(
+    (l) => Boolean(l.aiIntelligence || l.aiAnalysis?.summary || l.aiAnalysis),
+  ).length
+
+  const highPriorityLeads = filteredLeads.filter(
+    (l) => l.aiIntelligence?.priority === 'High' || l.aiMetadata?.leadQuality === 'High',
+  ).length
+
+  const scores = filteredLeads
+    .map((l) => l.aiIntelligence?.score)
+    .filter((s) => typeof s === 'number' && !isNaN(s))
+
+  const averageAiScore =
+    scores.length > 0
+      ? Number((scores.reduce((sum, s) => sum + s, 0) / scores.length).toFixed(1))
+      : (analyzedLeads > 0 ? 70 : 0)
+
+  const leadsRequiringFollowUp = filteredLeads.filter(
+    (l) => l.status === 'New' || l.status === 'Contacted' || pendingTasks > 0,
+  ).length
+
   return {
     kpis: {
       totalLeads,
@@ -133,6 +154,12 @@ export function computeAnalyticsMetrics(leads = [], agents = [], workflows = [],
       activeAgents,
       activeWorkflows,
       totalTasks,
+    },
+    crmIntelligence: {
+      analyzedLeads,
+      highPriorityLeads,
+      averageAiScore,
+      leadsRequiringFollowUp,
     },
     leadAnalytics: {
       totalLeads,

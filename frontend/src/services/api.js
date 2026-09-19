@@ -107,6 +107,7 @@ export const leadsApi = {
   create: (payload) => request('/leads', { method: 'POST', body: payload }),
   update: (id, payload) => request(`/leads/${id}`, { method: 'PUT', body: payload }),
   delete: (id) => request(`/leads/${id}`, { method: 'DELETE' }),
+  analyze: (id) => request(`/leads/${id}/analyze`, { method: 'POST' }),
 }
 
 // AI Agents API

@@ -1,7 +1,12 @@
 import mongoose from 'mongoose'
-import { Activity, FollowUpTask, Lead } from '../models/index.js'
+import { Activity, Agent, FollowUpTask, Lead } from '../models/index.js'
+import { analyzeLead } from '../services/ai/aiService.js'
 import { executeNewLeadWorkflow } from '../services/workflowEngine.js'
-import { getDevUserActivities, getDevUserLeads } from '../utils/devStore.js'
+import {
+  getDevUserActivities,
+  getDevUserAgents,
+  getDevUserLeads,
+} from '../utils/devStore.js'
 
 /**
  * GET /api/leads
@@ -297,10 +302,149 @@ export const deleteLead = async (req, res, next) => {
   }
 }
 
+/**
+ * POST /api/leads/:id/analyze
+ * On-demand AI lead analysis and scoring for an existing lead
+ */
+export const analyzeLeadAction = async (req, res) => {
+  try {
+    const userId = req.user._id
+    const { id } = req.params
+    const isDbConnected = mongoose.connection.readyState === 1
+
+    if (!mongoose.Types.ObjectId.isValid(id) && isDbConnected) {
+      return res.status(400).json({ success: false, message: 'Invalid lead ID format' })
+    }
+
+    let lead = null
+    let assignedAgent = null
+
+    if (isDbConnected) {
+      lead = await Lead.findOne({ _id: id, owner: userId })
+      if (!lead) {
+        return res.status(404).json({ success: false, message: 'Lead not found' })
+      }
+
+      assignedAgent = await Agent.findOne({
+        owner: userId,
+        type: { $in: ['Sales', 'Sales Agent'] },
+      })
+    } else {
+      const userLeads = getDevUserLeads(userId)
+      lead = userLeads.find((l) => l._id.toString() === id.toString())
+      if (!lead) {
+        return res.status(404).json({ success: false, message: 'Lead not found' })
+      }
+
+      const devAgents = getDevUserAgents(userId)
+      assignedAgent = devAgents.find((a) => a.type === 'Sales') || devAgents[0] || null
+    }
+
+    if (assignedAgent && assignedAgent.status !== 'Active') {
+      return res.status(400).json({
+        success: false,
+        message: `AI analysis cannot run: assigned agent "${assignedAgent.name}" is Inactive`,
+      })
+    }
+
+    const aiResult = await analyzeLead(lead, assignedAgent)
+
+    const isRealAI = Boolean(aiResult.isRealAI)
+    const structuredIntelligence = {
+      score: typeof aiResult.score === 'number' ? aiResult.score : 50,
+      priority: aiResult.priority || aiResult.leadQuality || 'Medium',
+      summary: aiResult.summary || 'Lead analyzed.',
+      keySignals: Array.isArray(aiResult.keySignals) ? aiResult.keySignals : [],
+      risks: Array.isArray(aiResult.risks) ? aiResult.risks : [],
+      recommendedNextAction: aiResult.recommendedNextAction || aiResult.suggestedNextStep || 'Review lead details.',
+      followUpSuggestion: aiResult.followUpSuggestion || '',
+      analyzedAt: aiResult.analyzedAt || new Date().toISOString(),
+      isRealAI,
+      provider: aiResult.provider || 'fallback',
+      model: aiResult.model || 'bounded-fallback-v1',
+      humanReviewRequired: true,
+    }
+
+    lead.aiIntelligence = structuredIntelligence
+    lead.aiAnalysis = structuredIntelligence.summary
+    lead.suggestedNextStep = structuredIntelligence.recommendedNextAction
+    lead.aiMetadata = {
+      isRealAI,
+      provider: aiResult.provider || 'fallback',
+      model: aiResult.model || 'bounded-fallback-v1',
+      leadQuality: structuredIntelligence.priority,
+      reasoningSummary: aiResult.reasoningSummary || structuredIntelligence.summary,
+      humanReviewRequired: true,
+      analyzedAt: structuredIntelligence.analyzedAt,
+    }
+
+    const activityTitle = `Lead re-analyzed with AI [Score: ${structuredIntelligence.score} | ${structuredIntelligence.priority} Priority]`
+    const activityDesc = `${structuredIntelligence.summary} — Human Review Required.`
+
+    if (isDbConnected) {
+      await lead.save()
+
+      await Activity.create({
+        type: 'lead_analyzed',
+        title: activityTitle,
+        description: activityDesc,
+        lead: lead._id,
+        agent: assignedAgent ? assignedAgent._id : undefined,
+        status: 'Succeeded',
+        owner: userId,
+      })
+
+      const tasks = await FollowUpTask.find({ lead: lead._id, owner: userId }).sort({ createdAt: -1 })
+      const activities = await Activity.find({ lead: lead._id, owner: userId }).sort({ createdAt: -1 })
+
+      return res.status(200).json({
+        success: true,
+        message: 'Lead analyzed successfully',
+        lead: {
+          ...lead.toObject(),
+          tasks,
+          activities,
+        },
+      })
+    }
+
+    // Offline dev fallback
+    lead.updatedAt = new Date()
+    const reanalyzeAct = {
+      _id: new mongoose.Types.ObjectId(),
+      type: 'lead_analyzed',
+      title: activityTitle,
+      description: activityDesc,
+      lead: lead._id,
+      agent: assignedAgent ? assignedAgent._id : undefined,
+      status: 'Succeeded',
+      owner: userId,
+      createdAt: new Date(),
+    }
+    const devActs = getDevUserActivities(userId)
+    devActs.unshift(reanalyzeAct)
+    lead.activities = [reanalyzeAct, ...(lead.activities || [])]
+
+    return res.status(200).json({
+      success: true,
+      message: 'Lead analyzed successfully',
+      lead,
+    })
+  } catch (error) {
+    // Never expose stack trace or API keys
+    console.error('[LeadsController] Analyze lead error:', error.message)
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to analyze lead with AI. Please try again.',
+    })
+  }
+}
+
 export default {
   getLeads,
   getLeadById,
   createLead,
   updateLead,
   deleteLead,
+  analyzeLeadAction,
 }

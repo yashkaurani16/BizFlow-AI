@@ -50,10 +50,48 @@ export function generateFallbackAnalysis(lead, agent) {
   const budgetNote = lead.budget ? ` Stated budget: ${lead.budget}.` : ''
   const timelineNote = lead.projectTimeline ? ` Timeline: ${lead.projectTimeline}.` : ''
 
+  // Deterministic bounded scoring based on CRM field completeness
+  let calculatedScore = 50
+  if (lead.company) calculatedScore += 15
+  if (lead.phone) calculatedScore += 10
+  if (lead.budget) calculatedScore += 15
+  if (lead.projectTimeline) calculatedScore += 10
+  if (typeof lead.score === 'number') {
+    calculatedScore = Math.max(0, Math.min(100, Math.round(lead.score)))
+  }
+  const score = Math.max(0, Math.min(100, calculatedScore))
+
+  const priority = score >= 75 ? 'High' : score >= 50 ? 'Medium' : 'Low'
+
+  const keySignals = [
+    lead.company ? `Verified company affiliation: ${lead.company}` : 'Direct individual inbound inquiry',
+    lead.email ? `Contact email verified: ${lead.email}` : null,
+    lead.phone ? `Phone contact provided: ${lead.phone}` : 'Email-only contact channel',
+    lead.budget ? `Declared budget: ${lead.budget}` : null,
+    lead.projectTimeline ? `Target timeline: ${lead.projectTimeline}` : null,
+  ].filter(Boolean)
+
+  const risks = [
+    !lead.phone ? 'No phone number provided; outreach limited to email' : null,
+    !lead.company ? 'No company name provided; individual account' : null,
+    !lead.budget ? 'Budget unspecified; qualification call required to establish budget' : null,
+    'Human review and confirmation required prior to outreach',
+  ].filter(Boolean)
+
+  const recommendedNextAction = `Schedule a 20-minute discovery call with ${lead.name} to demonstrate tailored business automations.`
+  const followUpSuggestion = `Hi ${lead.name}, thank you for your interest in BizFlow AI. I noticed your interest in automating your business workflows${lead.company ? ` at ${lead.company}` : ''}. Would you be open to a quick 15-minute conversation this week to explore how we can assist?`
+  const summary = `Lead qualified for ${lead.name} ${company} based on profile criteria.${budgetNote}${timelineNote} High intent for workflow automation. Potential value: Tier-1 business account.`
+
   return {
-    summary: `Lead qualified for ${lead.name} ${company} based on profile criteria.${budgetNote}${timelineNote} High intent for workflow automation. Potential value: Tier-1 business account.`,
-    leadQuality: lead.score && lead.score > 70 ? 'High' : 'Medium',
-    suggestedNextStep: `Schedule a 20-minute discovery call with ${lead.name} to demonstrate tailored business automations.`,
+    score,
+    priority,
+    summary,
+    keySignals,
+    risks,
+    recommendedNextAction,
+    followUpSuggestion,
+    leadQuality: priority,
+    suggestedNextStep: recommendedNextAction,
     reasoningSummary: `Evaluated by ${agentName} using bounded business heuristics. Contact information and lead interest verified.`,
     isRealAI: false,
     isFallback: true,
@@ -251,14 +289,29 @@ export async function executeAIRequest({ systemPrompt, userPrompt, fallbackFn })
 
     clearTimeout(timeoutId)
 
+    const validatedPriority = ['High', 'Medium', 'Low'].includes(parsed.priority)
+      ? parsed.priority
+      : (['High', 'Medium', 'Low'].includes(parsed.leadQuality) ? parsed.leadQuality : 'Medium')
+
+    const validatedScore = typeof parsed.score === 'number'
+      ? Math.max(0, Math.min(100, Math.round(parsed.score)))
+      : (validatedPriority === 'High' ? 85 : validatedPriority === 'Low' ? 35 : 65)
+
+    const recommendedNextAction = parsed.recommendedNextAction || parsed.suggestedNextStep || 'Review lead details.'
+    const summary = parsed.summary || 'Lead analyzed successfully.'
+
     return {
       result: {
-        summary: parsed.summary || 'Lead analyzed successfully.',
-        leadQuality: ['High', 'Medium', 'Low'].includes(parsed.leadQuality)
-          ? parsed.leadQuality
-          : 'Medium',
-        suggestedNextStep: parsed.suggestedNextStep || 'Review lead details.',
-        reasoningSummary: parsed.reasoningSummary || 'AI evaluation complete.',
+        score: validatedScore,
+        priority: validatedPriority,
+        summary,
+        keySignals: Array.isArray(parsed.keySignals) ? parsed.keySignals.map(String) : [],
+        risks: Array.isArray(parsed.risks) ? parsed.risks.map(String) : [],
+        recommendedNextAction,
+        followUpSuggestion: parsed.followUpSuggestion || 'Review lead and follow up.',
+        leadQuality: validatedPriority,
+        suggestedNextStep: recommendedNextAction,
+        reasoningSummary: parsed.reasoningSummary || summary,
         isRealAI: true,
         isFallback: false,
         provider: config.provider,

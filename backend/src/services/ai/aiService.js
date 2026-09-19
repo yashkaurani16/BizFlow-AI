@@ -50,14 +50,18 @@ AGENT INSTRUCTIONS:
 ${agentInstructions}
 
 TASK:
-Analyze the provided inbound business lead. Evaluate business fit, assign a lead quality rating (High, Medium, or Low), and propose a single, professional suggested next step for a human sales representative.
+Analyze the provided inbound business lead using ONLY the provided CRM details. Do NOT invent any personal or business facts.
+Evaluate qualification level, assign a numerical lead score (0 to 100), assign a priority tier (High, Medium, or Low), extract observed key signals from provided data, identify potential risks or missing details, recommend the single best next action, and draft a polite follow-up suggestion for human review.
 
 OUTPUT FORMAT (strictly JSON):
 {
-  "summary": "Brief 1-2 sentence executive assessment of the lead and qualification level.",
-  "leadQuality": "High" | "Medium" | "Low",
-  "suggestedNextStep": "Specific, actionable follow-up step for the human rep.",
-  "reasoningSummary": "1 sentence explaining the key factors driving this assessment."
+  "score": 85,
+  "priority": "High" | "Medium" | "Low",
+  "summary": "Brief 1-2 sentence executive assessment based strictly on provided lead details.",
+  "keySignals": ["Observed signal 1", "Observed signal 2"],
+  "risks": ["Risk or missing information 1", "Risk 2"],
+  "recommendedNextAction": "Specific, actionable follow-up step for the human rep.",
+  "followUpSuggestion": "Draft message or outreach suggestion for the human rep to review and personalize."
 }`
 
   const userPrompt = `LEAD DETAILS:

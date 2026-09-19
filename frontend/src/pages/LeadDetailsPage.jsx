@@ -6,6 +6,7 @@ import Button from '../components/Button.jsx'
 import ConfirmDialog from '../components/ConfirmDialog.jsx'
 import { ErrorState } from '../components/EmptyState.jsx'
 import FollowUpTaskCard from '../components/FollowUpTaskCard.jsx'
+import LeadIntelligenceCard from '../components/LeadIntelligenceCard.jsx'
 import SectionCard from '../components/SectionCard.jsx'
 import StatusBadge from '../components/StatusBadge.jsx'
 import { useLeads } from '../context/LeadsContext.jsx'
@@ -14,9 +15,11 @@ import { useToast } from '../context/ToastContext.jsx'
 function LeadDetailsPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { getLead, deleteLead } = useLeads()
+  const { getLead, deleteLead, analyzeLead } = useLeads()
   const { showToast } = useToast()
   const [pendingDelete, setPendingDelete] = useState(false)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [analyzeError, setAnalyzeError] = useState('')
   const lead = getLead(id)
 
   if (!lead) {
@@ -36,14 +39,34 @@ function LeadDetailsPage() {
     navigate('/leads')
   }
 
+  async function handleAnalyzeWithAi() {
+    try {
+      setIsAnalyzing(true)
+      setAnalyzeError('')
+      await analyzeLead(lead.id)
+      showToast(`AI intelligence updated for ${lead.name}.`)
+    } catch (err) {
+      setAnalyzeError(err.message || 'Failed to analyze lead with AI.')
+    } finally {
+      setIsAnalyzing(false)
+    }
+  }
+
   return (
     <div className="lead-details">
       <div className="page-heading">
         <div>
           <h1>{lead.name}</h1>
-          <p>Review lead details, mock AI analysis, and follow-up activity.</p>
+          <p>Review lead details, AI intelligence assessment, and follow-up activity.</p>
         </div>
         <div className="heading-actions">
+          <Button
+            variant="secondary"
+            onClick={handleAnalyzeWithAi}
+            disabled={isAnalyzing}
+          >
+            {isAnalyzing ? 'Analyzing with AI...' : 'Analyze with AI'}
+          </Button>
           <Button to={`/leads/${lead.id}/edit`}>Edit</Button>
           <Button variant="danger" onClick={() => setPendingDelete(true)}>
             Delete
@@ -88,37 +111,13 @@ function LeadDetailsPage() {
         </SectionCard>
 
         <div className="details-side">
-          <SectionCard title="AI Analysis">
-            {lead.aiAnalysis.status === 'pending' ? (
-              <p className="muted-copy">Analysis pending. Evaluating lead qualification...</p>
-            ) : lead.aiAnalysis.status === 'failed' ? (
-              <Alert tone="error">
-                AI analysis encountered an issue. The lead was still safely saved. A human representative can review and qualify this lead manually.
-              </Alert>
-            ) : (
-              <div className="lead-ai-analysis-block">
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap' }}>
-                  <span className={`badge ${lead.aiMetadata?.isRealAI ? 'badge-success' : 'badge-neutral'}`}>
-                    {lead.aiMetadata?.isRealAI ? 'AI Provider Connected' : 'AI Provider Unavailable — Fallback Analysis'}
-                  </span>
-                  <span className="badge badge-warning">Human Review Required</span>
-                  {lead.aiMetadata?.leadQuality && (
-                    <span className="badge badge-info">Quality: {lead.aiMetadata.leadQuality}</span>
-                  )}
-                </div>
-                <p>{lead.aiAnalysis.summary}</p>
-                {lead.aiMetadata?.reasoningSummary && (
-                  <p className="muted-copy" style={{ fontSize: '0.85rem', marginTop: '8px' }}>
-                    <strong>Reasoning:</strong> {lead.aiMetadata.reasoningSummary}
-                  </p>
-                )}
-              </div>
-            )}
-          </SectionCard>
+          {analyzeError && (
+            <Alert tone="error">
+              {analyzeError}
+            </Alert>
+          )}
 
-          <SectionCard title="Suggested next step">
-            <p>{lead.suggestedNextStep || 'No suggested next step until mock analysis succeeds.'}</p>
-          </SectionCard>
+          <LeadIntelligenceCard lead={lead} />
 
           <SectionCard title="Follow-up task">
             <FollowUpTaskCard task={lead.followUpTask} />

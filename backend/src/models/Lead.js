@@ -73,6 +73,26 @@ const leadSchema = new mongoose.Schema(
         humanReviewRequired: true,
       }),
     },
+    aiIntelligence: {
+      type: new mongoose.Schema(
+        {
+          score: { type: Number, min: 0, max: 100, default: 50 },
+          priority: { type: String, enum: ['High', 'Medium', 'Low'], default: 'Medium' },
+          summary: { type: String, default: '' },
+          keySignals: { type: [String], default: [] },
+          risks: { type: [String], default: [] },
+          recommendedNextAction: { type: String, default: '' },
+          followUpSuggestion: { type: String, default: '' },
+          analyzedAt: { type: Date, default: Date.now },
+          isRealAI: { type: Boolean, default: false },
+          provider: { type: String, default: 'fallback' },
+          model: { type: String, default: 'bounded-fallback-v1' },
+          humanReviewRequired: { type: Boolean, default: true },
+        },
+        { _id: false },
+      ),
+      default: null,
+    },
     owner: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

@@ -134,17 +134,33 @@ export const executeNewLeadWorkflow = async (lead, userId) => {
     const isRealAI = Boolean(aiResult.isRealAI)
     const providerTag = isRealAI ? 'AI Provider Connected' : 'AI Provider Unavailable — Fallback Analysis'
 
-    // 4. Save Analysis & AI Metadata to CRM Lead
+    const structuredIntelligence = {
+      score: typeof aiResult.score === 'number' ? aiResult.score : 50,
+      priority: aiResult.priority || aiResult.leadQuality || 'Medium',
+      summary: analysisText,
+      keySignals: Array.isArray(aiResult.keySignals) ? aiResult.keySignals : [],
+      risks: Array.isArray(aiResult.risks) ? aiResult.risks : [],
+      recommendedNextAction: aiResult.recommendedNextAction || suggestedNextStep,
+      followUpSuggestion: aiResult.followUpSuggestion || '',
+      analyzedAt: aiResult.analyzedAt || new Date().toISOString(),
+      isRealAI,
+      provider: aiResult.provider || 'fallback',
+      model: aiResult.model || 'bounded-fallback-v1',
+      humanReviewRequired: true,
+    }
+
+    // 4. Save Structured Intelligence, Analysis, & AI Metadata to CRM Lead
+    lead.aiIntelligence = structuredIntelligence
     lead.aiAnalysis = analysisText
     lead.suggestedNextStep = suggestedNextStep
     lead.aiMetadata = {
       isRealAI,
       provider: aiResult.provider || 'fallback',
       model: aiResult.model || 'bounded-fallback-v1',
-      leadQuality: aiResult.leadQuality || 'Medium',
+      leadQuality: structuredIntelligence.priority,
       reasoningSummary: aiResult.reasoningSummary || '',
       humanReviewRequired: true,
-      analyzedAt: aiResult.analyzedAt || new Date().toISOString(),
+      analyzedAt: structuredIntelligence.analyzedAt,
     }
 
     if (isDbConnected && typeof lead.save === 'function') {
