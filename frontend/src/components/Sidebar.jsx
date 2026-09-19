@@ -1,12 +1,15 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext.jsx'
 import { navItems } from '../data/navigation.js'
 import { isActivePath } from '../utils/nav.js'
 
 function Sidebar({ pathname, isDrawer, onNavigate }) {
   const navigate = useNavigate()
+  const { logout } = useAuth()
 
-  function handleLogout() {
+  async function handleLogout() {
     onNavigate?.()
+    await logout()
     navigate('/login')
   }
 

@@ -1,4 +1,5 @@
 import { AgentsProvider } from './context/AgentsContext.jsx'
+import { AuthProvider } from './context/AuthContext.jsx'
 import { LeadsProvider } from './context/LeadsContext.jsx'
 import { SettingsProvider } from './context/SettingsContext.jsx'
 import { ToastProvider } from './context/ToastContext.jsx'
@@ -8,15 +9,17 @@ import AppRoutes from './routes/AppRoutes.jsx'
 function App() {
   return (
     <ToastProvider>
-      <LeadsProvider>
-        <AgentsProvider>
-          <WorkflowsProvider>
-            <SettingsProvider>
-              <AppRoutes />
-            </SettingsProvider>
-          </WorkflowsProvider>
-        </AgentsProvider>
-      </LeadsProvider>
+      <AuthProvider>
+        <LeadsProvider>
+          <AgentsProvider>
+            <WorkflowsProvider>
+              <SettingsProvider>
+                <AppRoutes />
+              </SettingsProvider>
+            </WorkflowsProvider>
+          </AgentsProvider>
+        </LeadsProvider>
+      </AuthProvider>
     </ToastProvider>
   )
 }

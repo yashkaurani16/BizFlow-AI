@@ -1,0 +1,15 @@
+import { Router } from 'express'
+import { getMe, login, logout, register } from '../controllers/authController.js'
+import { protect } from '../middleware/authMiddleware.js'
+
+const router = Router()
+
+// Public authentication routes
+router.post('/register', register)
+router.post('/login', login)
+router.post('/logout', logout)
+
+// Protected user profile route
+router.get('/me', protect, getMe)
+
+export default router

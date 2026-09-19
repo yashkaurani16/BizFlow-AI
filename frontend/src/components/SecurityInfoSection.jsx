@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext.jsx'
 import Alert from './Alert.jsx'
 import Button from './Button.jsx'
 import ConfirmDialog from './ConfirmDialog.jsx'
@@ -7,10 +8,12 @@ import SectionCard from './SectionCard.jsx'
 
 function SecurityInfoSection({ securityInfo }) {
   const navigate = useNavigate()
+  const { logout } = useAuth()
   const [confirmLogout, setConfirmLogout] = useState(false)
 
-  function handleLogout() {
+  async function handleLogout() {
     setConfirmLogout(false)
+    await logout()
     navigate('/login')
   }
 

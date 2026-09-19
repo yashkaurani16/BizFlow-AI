@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import AppLayout from '../layouts/AppLayout.jsx'
 import AuthLayout from '../layouts/AuthLayout.jsx'
+import { useAuth } from '../context/AuthContext.jsx'
 import LoginPage from '../pages/LoginPage.jsx'
 import RegisterPage from '../pages/RegisterPage.jsx'
 import DashboardPage from '../pages/DashboardPage.jsx'
@@ -19,15 +20,51 @@ import WorkflowDetailsPage from '../pages/WorkflowDetailsPage.jsx'
 import AnalyticsPage from '../pages/AnalyticsPage.jsx'
 import SettingsPage from '../pages/SettingsPage.jsx'
 
+function ProtectedRoute() {
+  const { isAuthenticated, isLoading } = useAuth()
+
+  if (isLoading) {
+    return (
+      <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+        Loading session...
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />
+  }
+
+  return <AppLayout />
+}
+
+function PublicAuthRoute() {
+  const { isAuthenticated, isLoading } = useAuth()
+
+  if (isLoading) {
+    return (
+      <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+        Loading session...
+      </div>
+    )
+  }
+
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />
+  }
+
+  return <AuthLayout />
+}
+
 function AppRoutes() {
   return (
     <Routes>
-      <Route element={<AuthLayout />}>
+      <Route element={<PublicAuthRoute />}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
       </Route>
 
-      <Route element={<AppLayout />}>
+      <Route element={<ProtectedRoute />}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/leads" element={<LeadsPage />} />
         <Route path="/leads/new" element={<AddLeadPage />} />

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import AgentAnalyticsSection from '../components/AgentAnalyticsSection.jsx'
 import { EmptyState, ErrorState } from '../components/EmptyState.jsx'
 import LeadAnalyticsSection from '../components/LeadAnalyticsSection.jsx'
@@ -11,6 +11,7 @@ import { useAgents } from '../context/AgentsContext.jsx'
 import { useLeads } from '../context/LeadsContext.jsx'
 import { useWorkflows } from '../context/WorkflowsContext.jsx'
 import { computeAnalyticsMetrics, DATE_RANGE_OPTIONS } from '../data/analyticsData.js'
+import { analyticsApi } from '../services/api.js'
 
 function AnalyticsPage() {
   const { leads } = useLeads()
@@ -18,12 +19,30 @@ function AnalyticsPage() {
   const { workflows } = useWorkflows()
   const [dateRange, setDateRange] = useState('All Time')
   const [retryKey, setRetryKey] = useState(0)
+  const [serverAnalytics, setServerAnalytics] = useState(null)
+
+  useEffect(() => {
+    let active = true
+    analyticsApi
+      .getAnalytics(dateRange)
+      .then((res) => {
+        if (active && res && res.success && res.analytics) {
+          setServerAnalytics(res.analytics)
+        }
+      })
+      .catch((err) => {
+        console.warn('[AnalyticsPage] Server analytics unavailable, using local calculation:', err.message)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [dateRange, retryKey])
 
   const { analytics, error } = useMemo(() => {
     try {
-      // Reference retryKey to re-evaluate on retry
-      if (retryKey < 0) {
-        return { analytics: null, error: null }
+      if (serverAnalytics) {
+        return { analytics: serverAnalytics, error: null }
       }
       return {
         analytics: computeAnalyticsMetrics(leads, agents, workflows, dateRange),
@@ -35,7 +54,7 @@ function AnalyticsPage() {
         error: err?.message || 'Unable to compute analytics.',
       }
     }
-  }, [leads, agents, workflows, dateRange, retryKey])
+  }, [serverAnalytics, leads, agents, workflows, dateRange])
 
   if (error) {
     return (
