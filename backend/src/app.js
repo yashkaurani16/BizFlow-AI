@@ -32,8 +32,13 @@ app.disable('x-powered-by')
 app.use(securityHeaders)
 
 // 3. CORS configuration
+const clientOrigins = (process.env.CLIENT_URL || '')
+  .split(',')
+  .map((url) => url.trim())
+  .filter(Boolean)
+
 const allowedOrigins = [
-  process.env.CLIENT_URL,
+  ...clientOrigins,
   'http://localhost:5176',
   'http://localhost:5173',
 ].filter(Boolean)

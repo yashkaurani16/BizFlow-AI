@@ -1,0 +1,38 @@
+# BizFlow AI — Render Infrastructure Blueprint
+# Use this blueprint to deploy the BizFlow AI backend on Render as a Web Service.
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: bizflow-ai-backend
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGODB_URI
+        sync: false
+      - key: CLIENT_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: AI_PROVIDER
+        value: gemini
+      - key: AI_MODEL
+        value: gemini-2.5-flash
+      - key: AI_API_KEY
+        sync: false
+      - key: EMAIL_PROVIDER
+        value: sandbox
+      - key: WHATSAPP_PROVIDER
+        value: sandbox
+      - key: SMS_PROVIDER
+        value: sandbox
