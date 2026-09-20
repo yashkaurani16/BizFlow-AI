@@ -136,8 +136,24 @@ export const dashboardApi = {
 
 // Analytics API
 export const analyticsApi = {
-  getAnalytics: (range = 'All Time') =>
-    request(`/analytics?range=${encodeURIComponent(range)}`, { method: 'GET' }),
+  getAnalytics: (params = {}) => {
+    if (typeof params === 'string') {
+      return request(`/analytics?range=${encodeURIComponent(params)}`, { method: 'GET' })
+    }
+    const query = new URLSearchParams()
+    if (params.range) query.append('range', params.range)
+    if (params.status && params.status !== 'All') query.append('status', params.status)
+    if (params.priority && params.priority !== 'All') query.append('priority', params.priority)
+    if (params.channel && params.channel !== 'All') query.append('channel', params.channel)
+    const qs = query.toString()
+    return request(`/analytics${qs ? `?${qs}` : ''}`, { method: 'GET' })
+  },
+  getInsights: (params = {}) => {
+    const query = new URLSearchParams()
+    if (params.range) query.append('range', params.range)
+    const qs = query.toString()
+    return request(`/analytics/insights${qs ? `?${qs}` : ''}`, { method: 'GET' })
+  },
 }
 
 // Profile & Settings API

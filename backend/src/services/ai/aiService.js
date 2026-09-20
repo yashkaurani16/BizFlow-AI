@@ -175,10 +175,186 @@ OUTPUT FORMAT (JSON):
   return response.result
 }
 
+/**
+ * STEP 22: Generate Bounded Advisory AI Insights from Aggregate CRM/Workflow/Communication Data
+ * Strictly advisory for human review. Does NOT perform mutations or external calls.
+ */
+export async function generateAnalyticsInsights(metricsSummary = {}) {
+  const {
+    totalLeads = 0,
+    newLeads = 0,
+    qualifiedLeads = 0,
+    convertedLeads = 0,
+    highPriorityLeads = 0,
+    averageAiScore = 0,
+    leadsRequiringFollowUp = 0,
+    completedTasks = 0,
+    pendingTasks = 0,
+    activeWorkflows = 0,
+    workflowSuccessRate = '100%',
+    communicationDrafts = 0,
+    humanApprovedSends = 0,
+    channelBreakdown = { email: 0, whatsapp: 0, sms: 0 },
+  } = metricsSummary
+
+  const systemPrompt = `${SYSTEM_SAFETY_PREAMBLE}
+
+TASK:
+Analyze the provided aggregate business metrics for BizFlow AI.
+Generate 3 to 5 actionable, data-driven, and strictly advisory business insights.
+Do NOT invent unprovided numbers. Rely solely on the provided summary.
+All recommendations must be for HUMAN REVIEW and human execution.
+
+OUTPUT FORMAT (JSON array of insight objects):
+[
+  {
+    "title": "Short descriptive title",
+    "category": "Pipeline" | "Follow-Up" | "AI Quality" | "Workflows" | "Communications",
+    "insight": "1-2 sentence data-grounded observation based on the metrics",
+    "supportingMetric": "Specific metric supporting this observation (e.g. '75% Qualified Leads' or '4 Pending Follow-Ups')",
+    "recommendedAction": "Concrete action for the human team"
+  }
+]`
+
+  const userPrompt = `AGGREGATE OPERATIONAL METRICS:
+- Total Leads: ${totalLeads} (New: ${newLeads}, Qualified: ${qualifiedLeads}, Converted: ${convertedLeads})
+- High Priority AI Leads: ${highPriorityLeads}
+- Average AI Lead Score: ${averageAiScore} / 100
+- Leads Requiring Follow-Up: ${leadsRequiringFollowUp}
+- Tasks: ${pendingTasks} Pending, ${completedTasks} Completed
+- Active Workflows: ${activeWorkflows} (Execution Success Rate: ${workflowSuccessRate})
+- Communication Drafts: ${communicationDrafts} (Email: ${channelBreakdown.email || 0}, WhatsApp: ${channelBreakdown.whatsapp || 0}, SMS: ${channelBreakdown.sms || 0})
+- Human Approved Sandbox Sends: ${humanApprovedSends}`
+
+  const fallbackFn = () => {
+    const insights = []
+
+    // 1. Pipeline Insight
+    if (totalLeads === 0) {
+      insights.push({
+        title: 'Lead Pipeline Awaiting Initial Capture',
+        category: 'Pipeline',
+        insight: 'No leads are currently recorded in the workspace. Adding inbound leads will trigger automated AI qualification.',
+        supportingMetric: '0 Total Leads',
+        recommendedAction: 'Create or import inbound leads to initiate the automated follow-up workflow.',
+      })
+    } else if (qualifiedLeads > 0) {
+      const qRate = ((qualifiedLeads / totalLeads) * 100).toFixed(0)
+      insights.push({
+        title: 'Strong Lead Qualification Velocity',
+        category: 'Pipeline',
+        insight: `${qualifiedLeads} of ${totalLeads} leads (${qRate}%) meet business qualification criteria based on AI assessment.`,
+        supportingMetric: `${qRate}% Qualification Rate (${qualifiedLeads}/${totalLeads})`,
+        recommendedAction: 'Focus team outreach on qualified leads with high fit scores to optimize conversion.',
+      })
+    } else {
+      insights.push({
+        title: 'Inbound Lead Pipeline Active',
+        category: 'Pipeline',
+        insight: `${newLeads} new leads are queued for review and follow-up.`,
+        supportingMetric: `${newLeads} New Leads`,
+        recommendedAction: 'Review lead inquiries and execute initial qualification outreach.',
+      })
+    }
+
+    // 2. Follow-Up & Tasks Insight
+    if (pendingTasks > 0 || leadsRequiringFollowUp > 0) {
+      insights.push({
+        title: 'Actionable Follow-Up Attention Required',
+        category: 'Follow-Up',
+        insight: `There are ${pendingTasks} pending tasks and ${leadsRequiringFollowUp} leads currently awaiting team response.`,
+        supportingMetric: `${pendingTasks} Pending Tasks`,
+        recommendedAction: 'Review pending follow-up tasks to maintain prompt response time.',
+      })
+    } else {
+      insights.push({
+        title: 'Follow-Up Queue Clear',
+        category: 'Follow-Up',
+        insight: 'All created follow-up tasks have been addressed or resolved by the team.',
+        supportingMetric: `${completedTasks} Tasks Completed`,
+        recommendedAction: 'Monitor incoming inquiries for new follow-up opportunities.',
+      })
+    }
+
+    // 3. AI Quality Insight
+    if (averageAiScore > 0) {
+      insights.push({
+        title: 'AI Qualification Health',
+        category: 'AI Quality',
+        insight: `Analyzed leads exhibit an average AI fit score of ${averageAiScore}/100, indicating consistent lead fit.`,
+        supportingMetric: `Avg Score: ${averageAiScore} (${highPriorityLeads} High Priority)`,
+        recommendedAction: 'Prioritize immediate contact with leads scoring above 75.',
+      })
+    }
+
+    // 4. Communication & Sandbox Insight
+    if (communicationDrafts > 0 || humanApprovedSends > 0) {
+      insights.push({
+        title: 'External Communication Review Compliance',
+        category: 'Communications',
+        insight: `${communicationDrafts} drafts created with ${humanApprovedSends} human approvals in Development Sandbox mode.`,
+        supportingMetric: `${communicationDrafts} Drafts • ${humanApprovedSends} Approved`,
+        recommendedAction: 'Review queued communication drafts before simulated or production dispatch.',
+      })
+    }
+
+    // 5. Workflow Automation Insight
+    insights.push({
+      title: 'Workflow Automation Reliability',
+      category: 'Workflows',
+      insight: `${activeWorkflows} active workflow sequences are processing CRM events with a ${workflowSuccessRate} success rate.`,
+      supportingMetric: `${activeWorkflows} Active Workflows (${workflowSuccessRate} Success)`,
+      recommendedAction: 'Ensure all team triggers and AI agents remain active for automated lead capture.',
+    })
+
+    return {
+      insights,
+      isRealAI: false,
+      humanReviewRequired: true,
+    }
+  }
+
+  const response = await executeAIRequest({
+    systemPrompt,
+    userPrompt,
+    fallbackFn,
+  })
+
+  // Normalize response to ensure an array of insights
+  let items = []
+  if (Array.isArray(response.result)) {
+    items = response.result
+  } else if (response.result?.insights && Array.isArray(response.result.insights)) {
+    items = response.result.insights
+  } else if (response.result && typeof response.result === 'object') {
+    items = [response.result]
+  }
+
+  if (items.length === 0) {
+    items = fallbackFn().insights
+  }
+
+  return {
+    insights: items.map((item) => ({
+      title: item.title || 'Operational Observation',
+      category: item.category || 'Pipeline',
+      insight: item.insight || 'Operational pattern identified from current data.',
+      supportingMetric: item.supportingMetric || 'Current metrics',
+      recommendedAction: item.recommendedAction || 'Review recommended actions with your team.',
+      humanReviewRequired: true,
+      isRealAI: Boolean(response.isRealAI),
+    })),
+    isRealAI: Boolean(response.isRealAI),
+    humanReviewRequired: true,
+    generatedAt: new Date().toISOString(),
+  }
+}
+
 export default {
   getAIProviderStatus,
   analyzeLead,
   generateFollowUpSuggestion,
   generateSupportDraft,
   generateMarketingSuggestion,
+  generateAnalyticsInsights,
 }
