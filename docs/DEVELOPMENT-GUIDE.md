@@ -173,7 +173,7 @@ The visual workflow builder uses a bounded graph model:
 3. **Set Environment Variables**:
    - `NODE_ENV`: `production`
    - `PORT`: `10000` (or leave default for Render)
-   - `MONGODB_URI`: Your MongoDB Atlas connection string (e.g. `mongodb+srv://<user>:<password>@cluster.mongodb.net/bizflow_ai?retryWrites=true&w=majority`)
+   - `MONGODB_URI`: Your MongoDB Atlas connection string (e.g. `mongodb+srv://<user>:<password>@cluster.mongodb.net/bizflow_ai?authSource=admin&retryWrites=true&w=majority`)
    - `CLIENT_URL`: Your Vercel domain(s) separated by commas (e.g. `https://bizflow-ai.vercel.app,https://bizflow-ai-*.vercel.app`)
    - `JWT_SECRET`: A cryptographically secure 64-character random string.
    - `AI_PROVIDER`: `gemini`
