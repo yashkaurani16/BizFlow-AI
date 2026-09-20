@@ -6,9 +6,19 @@ const WorkflowsContext = createContext(null)
 
 function normalizeWorkflow(workflow) {
   if (!workflow) return null
+  const nodes = workflow.nodes || []
+  const edges = workflow.edges || []
+  const isVisual =
+    workflow.isVisualWorkflow !== undefined
+      ? Boolean(workflow.isVisualWorkflow)
+      : nodes.length > 0
+
   return {
     ...workflow,
     id: workflow.id || workflow._id?.toString() || '',
+    nodes,
+    edges,
+    isVisualWorkflow: isVisual,
     steps: workflow.steps || [
       { id: '1', name: 'New Lead', type: 'trigger' },
       { id: '2', name: 'Analyze Lead', type: 'ai' },
@@ -67,9 +77,14 @@ export function WorkflowsProvider({ children }) {
       const res = await workflowsApi.create(fields)
       if (res && res.success && res.workflow) {
         newWorkflow = normalizeWorkflow(res.workflow)
+      } else if (res && !res.success) {
+        throw new Error(res.message || 'Failed to create workflow')
       }
     } catch (err) {
-      console.warn('[WorkflowsContext] API create workflow failed, using local creation:', err.message)
+      if (err.message && err.message.includes('Validation') || err.message?.includes('required') || err.message?.includes('trigger') || err.message?.includes('Orphan') || err.message?.includes('Approval')) {
+        throw err
+      }
+      console.warn('[WorkflowsContext] API create workflow fallback:', err.message)
     }
 
     if (!newWorkflow) {
@@ -88,9 +103,14 @@ export function WorkflowsProvider({ children }) {
       const res = await workflowsApi.update(id, fields)
       if (res && res.success && res.workflow) {
         updated = normalizeWorkflow(res.workflow)
+      } else if (res && !res.success) {
+        throw new Error(res.message || 'Failed to update workflow')
       }
     } catch (err) {
-      console.warn('[WorkflowsContext] API update workflow failed, using local update:', err.message)
+      if (err.message && (err.message.includes('Validation') || err.message.includes('required') || err.message.includes('trigger') || err.message.includes('Orphan') || err.message.includes('Approval'))) {
+        throw err
+      }
+      console.warn('[WorkflowsContext] API update workflow fallback:', err.message)
     }
 
     setWorkflows((current) =>
@@ -105,11 +125,15 @@ export function WorkflowsProvider({ children }) {
 
         const next = {
           ...workflow,
-          name: fields.name.trim(),
-          description: fields.description.trim(),
-          trigger: fields.trigger,
-          agent: fields.agent,
+          ...fields,
+          name: fields.name !== undefined ? fields.name.trim() : workflow.name,
+          description: fields.description !== undefined ? fields.description.trim() : workflow.description,
+          trigger: fields.trigger !== undefined ? fields.trigger : workflow.trigger,
+          agent: fields.agent !== undefined ? fields.agent : workflow.agent,
           status: fields.status || workflow.status,
+          nodes: fields.nodes !== undefined ? fields.nodes : workflow.nodes,
+          edges: fields.edges !== undefined ? fields.edges : workflow.edges,
+          isVisualWorkflow: fields.isVisualWorkflow !== undefined ? fields.isVisualWorkflow : workflow.isVisualWorkflow,
           updatedAt: now.toISOString(),
         }
         updated = next
@@ -118,6 +142,26 @@ export function WorkflowsProvider({ children }) {
     )
 
     return updated
+  }, [])
+
+  const deleteWorkflow = useCallback(async (id) => {
+    try {
+      await workflowsApi.delete(id)
+    } catch (err) {
+      console.warn('[WorkflowsContext] API delete workflow failed:', err.message)
+    }
+    setWorkflows((current) => current.filter((w) => w.id !== id && w._id !== id))
+    return true
+  }, [])
+
+  const validateWorkflow = useCallback(async (payload) => {
+    try {
+      const res = await workflowsApi.validate(payload)
+      return res
+    } catch (err) {
+      console.warn('[WorkflowsContext] Workflow validation API error:', err.message)
+      return { success: false, isValid: false, errors: [err.message] }
+    }
   }, [])
 
   const toggleWorkflowStatus = useCallback(async (id) => {
@@ -161,8 +205,17 @@ export function WorkflowsProvider({ children }) {
   }, [workflows])
 
   const value = useMemo(
-    () => ({ workflows, getWorkflow, addWorkflow, updateWorkflow, toggleWorkflowStatus, isLoading }),
-    [workflows, getWorkflow, addWorkflow, updateWorkflow, toggleWorkflowStatus, isLoading],
+    () => ({
+      workflows,
+      getWorkflow,
+      addWorkflow,
+      updateWorkflow,
+      deleteWorkflow,
+      validateWorkflow,
+      toggleWorkflowStatus,
+      isLoading,
+    }),
+    [workflows, getWorkflow, addWorkflow, updateWorkflow, deleteWorkflow, validateWorkflow, toggleWorkflowStatus, isLoading],
   )
 
   return <WorkflowsContext.Provider value={value}>{children}</WorkflowsContext.Provider>
@@ -177,3 +230,4 @@ export function useWorkflows() {
 }
 
 export default WorkflowsContext
+

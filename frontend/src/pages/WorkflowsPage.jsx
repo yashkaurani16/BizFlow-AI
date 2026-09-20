@@ -9,10 +9,11 @@ import { useToast } from '../context/ToastContext.jsx'
 import { workflowStatuses } from '../data/enums.js'
 
 function WorkflowsPage() {
-  const { workflows, toggleWorkflowStatus } = useWorkflows()
+  const { workflows, toggleWorkflowStatus, deleteWorkflow } = useWorkflows()
   const { showToast } = useToast()
   const [statusFilter, setStatusFilter] = useState('All')
   const [pendingDeactivate, setPendingDeactivate] = useState(null)
+  const [pendingDelete, setPendingDelete] = useState(null)
 
   const filteredWorkflows = useMemo(() => {
     return workflows.filter((workflow) => {
@@ -36,6 +37,17 @@ function WorkflowsPage() {
     toggleWorkflowStatus(pendingDeactivate.id)
     showToast(`${pendingDeactivate.name} is now inactive.`, 'info')
     setPendingDeactivate(null)
+  }
+
+  async function confirmDeletion() {
+    if (!pendingDelete) return
+    try {
+      await deleteWorkflow(pendingDelete.id || pendingDelete._id)
+      showToast(`Workflow "${pendingDelete.name}" deleted.`)
+    } catch (err) {
+      showToast('Failed to delete workflow: ' + err.message, 'error')
+    }
+    setPendingDelete(null)
   }
 
   const hasNoWorkflowsAtAll = workflows.length === 0
@@ -90,6 +102,7 @@ function WorkflowsPage() {
                   key={workflow.id}
                   workflow={workflow}
                   onToggleStatus={handleToggleStatus}
+                  onDelete={(wf) => setPendingDelete(wf)}
                 />
               ))}
             </div>
@@ -105,8 +118,19 @@ function WorkflowsPage() {
         onCancel={() => setPendingDeactivate(null)}
         onConfirm={confirmDeactivation}
       />
+
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        title={pendingDelete ? `Delete "${pendingDelete.name}"?` : ''}
+        message="Are you sure you want to delete this workflow? This action cannot be undone."
+        confirmLabel="Delete Workflow"
+        variant="danger"
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={confirmDeletion}
+      />
     </div>
   )
 }
 
 export default WorkflowsPage
+

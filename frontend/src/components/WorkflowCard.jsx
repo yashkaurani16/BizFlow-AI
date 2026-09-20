@@ -3,16 +3,30 @@ import Button from './Button.jsx'
 import Card from './Card.jsx'
 import StatusBadge from './StatusBadge.jsx'
 
-function WorkflowCard({ workflow, onToggleStatus }) {
+function WorkflowCard({ workflow, onToggleStatus, onDelete }) {
   const isActive = workflow.status === 'Active'
-  const stepCount = workflow.steps?.length || 5
+  const isVisual = workflow.isVisualWorkflow || (workflow.nodes && workflow.nodes.length > 0)
+  const stepCount = isVisual ? workflow.nodes.length : workflow.steps?.length || 5
+  const hasCommNodes = isVisual && workflow.nodes?.some((n) => n.category === 'communication')
 
   return (
     <Card className={`workflow-card ${isActive ? 'is-active' : 'is-inactive'}`}>
       <div className="workflow-card-header">
         <div className="workflow-card-title-group">
           <h2 className="workflow-card-name">{workflow.name}</h2>
-          <span className="workflow-trigger-badge">Trigger: {workflow.trigger}</span>
+          <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+            <span className="workflow-trigger-badge">Trigger: {workflow.trigger}</span>
+            {isVisual && (
+              <span className="workflow-trigger-badge" style={{ background: '#f5f3ff', color: '#7c3aed' }}>
+                🎨 Visual
+              </span>
+            )}
+            {hasCommNodes && (
+              <span className="workflow-trigger-badge" style={{ background: '#fef3c7', color: '#b45309' }}>
+                🔒 Human Review
+              </span>
+            )}
+          </div>
         </div>
         <StatusBadge status={workflow.status} />
       </div>
@@ -26,16 +40,18 @@ function WorkflowCard({ workflow, onToggleStatus }) {
         </div>
         <div className="workflow-meta-item">
           <span className="meta-label">Steps</span>
-          <span className="meta-value">{stepCount} Steps (Fixed MVP Flow)</span>
+          <span className="meta-value">
+            {stepCount} Steps {isVisual ? '(Visual Flow)' : '(Fixed MVP Flow)'}
+          </span>
         </div>
         <div className="workflow-meta-item">
           <span className="meta-label">Last Execution</span>
-          <span className="meta-value">{workflow.lastExecution}</span>
+          <span className="meta-value">{workflow.lastExecution || 'Never executed'}</span>
         </div>
         <div className="workflow-meta-item">
           <span className="meta-label">Execution Status</span>
           <span className="meta-value">
-            <StatusBadge status={workflow.executionStatus} />
+            <StatusBadge status={workflow.executionStatus || 'Pending'} />
           </span>
         </div>
       </div>
@@ -54,9 +70,20 @@ function WorkflowCard({ workflow, onToggleStatus }) {
         >
           {isActive ? 'Deactivate' : 'Activate'}
         </Button>
+        {onDelete && (
+          <Button
+            variant="danger"
+            className="btn-compact"
+            onClick={() => onDelete(workflow)}
+            title="Delete workflow"
+          >
+            Delete
+          </Button>
+        )}
       </div>
     </Card>
   )
 }
 
 export default WorkflowCard
+

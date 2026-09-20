@@ -4,6 +4,7 @@ import Card from '../components/Card.jsx'
 import { ErrorState } from '../components/EmptyState.jsx'
 import StatusBadge from '../components/StatusBadge.jsx'
 import WorkflowForm from '../components/WorkflowForm.jsx'
+import WorkflowBuilder from '../components/workflow-builder/WorkflowBuilder.jsx'
 import { useWorkflows } from '../context/WorkflowsContext.jsx'
 import { useToast } from '../context/ToastContext.jsx'
 
@@ -12,10 +13,16 @@ function EditWorkflowPage() {
   const navigate = useNavigate()
   const { getWorkflow, updateWorkflow } = useWorkflows()
   const { showToast } = useToast()
-  const [submitting, setSubmitting] = useState(false)
-  const [submitError, setSubmitError] = useState('')
 
   const workflow = getWorkflow(id)
+
+  const [builderMode, setBuilderMode] = useState(
+    workflow?.isVisualWorkflow || (workflow?.nodes && workflow.nodes.length > 0)
+      ? 'visual'
+      : 'visual'
+  )
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
 
   if (!workflow) {
     return (
@@ -28,12 +35,12 @@ function EditWorkflowPage() {
     )
   }
 
-  function handleSubmit(values) {
+  async function handleLegacySubmit(values) {
     setSubmitError('')
     setSubmitting(true)
 
     try {
-      updateWorkflow(workflow.id, values)
+      await updateWorkflow(workflow.id, values)
       showToast('Workflow updated')
       navigate('/workflows')
     } catch (error) {
@@ -50,22 +57,43 @@ function EditWorkflowPage() {
             <h1>Edit Workflow</h1>
             <StatusBadge status={workflow.status} />
           </div>
-          <p>Update configuration and trigger rules for {workflow.name}.</p>
+          <p>Update configuration, step graph, and trigger rules for {workflow.name}.</p>
+        </div>
+        <div className="builder-mode-switcher">
+          <button
+            type="button"
+            className={`btn btn-compact ${builderMode === 'visual' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setBuilderMode('visual')}
+          >
+            🎨 Visual Builder
+          </button>
+          <button
+            type="button"
+            className={`btn btn-compact ${builderMode === 'form' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setBuilderMode('form')}
+          >
+            📋 Quick Form
+          </button>
         </div>
       </div>
 
-      <Card>
-        <WorkflowForm
-          initialValues={workflow}
-          submitLabel="Save changes"
-          onSubmit={handleSubmit}
-          onCancel={() => navigate('/workflows')}
-          submitting={submitting}
-          submitError={submitError}
-        />
-      </Card>
+      {builderMode === 'visual' ? (
+        <WorkflowBuilder initialWorkflow={workflow} isEditing={true} />
+      ) : (
+        <Card>
+          <WorkflowForm
+            initialValues={workflow}
+            submitLabel="Save changes"
+            onSubmit={handleLegacySubmit}
+            onCancel={() => navigate('/workflows')}
+            submitting={submitting}
+            submitError={submitError}
+          />
+        </Card>
+      )}
     </div>
   )
 }
 
 export default EditWorkflowPage
+

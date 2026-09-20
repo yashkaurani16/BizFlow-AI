@@ -110,29 +110,78 @@ function WorkflowDetailsPage() {
           </SectionCard>
 
           <SectionCard title="Approved Workflow Steps Sequence">
-            <p className="muted-copy" style={{ marginBottom: '1.25rem' }}>
-              The fixed 5-step follow-up automation executing on every new lead:
-            </p>
-            <ol className="vertical-workflow-stepper">
-              {workflow.steps.map((stepName, index) => (
-                <li key={stepName} className="vertical-step-item">
-                  <div className="vertical-marker-col">
-                    <span className="vertical-step-badge">{index + 1}</span>
-                    {index < workflow.steps.length - 1 ? <span className="vertical-step-arrow" aria-hidden="true" /> : null}
-                  </div>
-                  <div className="vertical-step-content">
-                    <h3 className="vertical-step-title">{stepName}</h3>
-                    <p className="vertical-step-desc">
-                      {index === 0 && 'Inbound lead captured and safely stored in CRM.'}
-                      {index === 1 && 'Assigned AI Agent reviews lead details and evaluates next actions.'}
-                      {index === 2 && 'Structured analysis output saved directly to the lead record.'}
-                      {index === 3 && 'Actionable follow-up task created for human team review.'}
-                      {index === 4 && 'Activity timeline record created for audit and workspace tracking.'}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ol>
+            {workflow.nodes && workflow.nodes.length > 0 ? (
+              <div className="wf-visual-flow-viewer">
+                <p className="muted-copy" style={{ marginBottom: '0.75rem' }}>
+                  Connected visual steps for this automated workflow ({workflow.nodes.length} steps):
+                </p>
+                <div className="wf-visual-flow-nodes">
+                  {workflow.nodes.map((node, idx) => (
+                    <div key={node.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <div className="wf-visual-flow-node">
+                        <span
+                          className={`wf-node-cat-pill`}
+                          style={{
+                            fontSize: '0.62rem',
+                            padding: '0.1rem 0.3rem',
+                            alignSelf: 'flex-start',
+                          }}
+                        >
+                          {node.category.toUpperCase()}
+                        </span>
+                        <strong style={{ fontSize: '0.8rem', color: 'var(--color-text)' }}>
+                          {node.label || node.type}
+                        </strong>
+                        {node.category === 'communication' && (
+                          <span
+                            style={{
+                              fontSize: '0.65rem',
+                              color: '#b45309',
+                              background: '#fef3c7',
+                              padding: '0.1rem 0.25rem',
+                              borderRadius: '4px',
+                            }}
+                          >
+                            🔒 Human Approval
+                          </span>
+                        )}
+                      </div>
+                      {idx < workflow.nodes.length - 1 && (
+                        <span className="wf-visual-flow-connector" aria-hidden="true">
+                          →
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <>
+                <p className="muted-copy" style={{ marginBottom: '1.25rem' }}>
+                  The fixed 5-step follow-up automation executing on every new lead:
+                </p>
+                <ol className="vertical-workflow-stepper">
+                  {workflow.steps.map((stepName, index) => (
+                    <li key={typeof stepName === 'object' ? stepName.name || stepName.id : stepName} className="vertical-step-item">
+                      <div className="vertical-marker-col">
+                        <span className="vertical-step-badge">{index + 1}</span>
+                        {index < workflow.steps.length - 1 ? <span className="vertical-step-arrow" aria-hidden="true" /> : null}
+                      </div>
+                      <div className="vertical-step-content">
+                        <h3 className="vertical-step-title">{typeof stepName === 'object' ? stepName.name : stepName}</h3>
+                        <p className="vertical-step-desc">
+                          {index === 0 && 'Inbound lead captured and safely stored in CRM.'}
+                          {index === 1 && 'Assigned AI Agent reviews lead details and evaluates next actions.'}
+                          {index === 2 && 'Structured analysis output saved directly to the lead record.'}
+                          {index === 3 && 'Actionable follow-up task created for human team review.'}
+                          {index === 4 && 'Activity timeline record created for audit and workspace tracking.'}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              </>
+            )}
           </SectionCard>
 
           <WorkflowExecutionViewer executions={workflow.executions} />

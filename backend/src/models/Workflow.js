@@ -44,6 +44,44 @@ const workflowSchema = new mongoose.Schema(
       required: false,
       index: true,
     },
+    nodes: {
+      type: [
+        {
+          id: { type: String, required: true },
+          type: { type: String, required: true },
+          label: { type: String, default: '' },
+          category: {
+            type: String,
+            enum: ['trigger', 'ai', 'crm', 'communication'],
+            required: true,
+          },
+          position: {
+            x: { type: Number, default: 0 },
+            y: { type: Number, default: 0 },
+          },
+          config: {
+            type: mongoose.Schema.Types.Mixed,
+            default: {},
+          },
+        },
+      ],
+      default: [],
+    },
+    edges: {
+      type: [
+        {
+          id: { type: String, required: true },
+          source: { type: String, required: true },
+          target: { type: String, required: true },
+          label: { type: String, default: '' },
+        },
+      ],
+      default: [],
+    },
+    isVisualWorkflow: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

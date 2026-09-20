@@ -1,6 +1,12 @@
 import mongoose from 'mongoose'
 
-const executionStatuses = ['Pending', 'Running', 'Succeeded', 'Failed']
+const executionStatuses = [
+  'Pending',
+  'Running',
+  'Succeeded',
+  'Failed',
+  'Waiting for Human Review',
+]
 
 const workflowExecutionSchema = new mongoose.Schema(
   {
@@ -41,6 +47,19 @@ const workflowExecutionSchema = new mongoose.Schema(
       type: String,
       trim: true,
       default: null,
+    },
+    stepResults: {
+      type: [
+        {
+          stepNumber: Number,
+          nodeType: String,
+          name: String,
+          status: String,
+          detail: String,
+          output: mongoose.Schema.Types.Mixed,
+        },
+      ],
+      default: [],
     },
   },
   {

@@ -125,6 +125,8 @@ export const workflowsApi = {
   getById: (id) => request(`/workflows/${id}`, { method: 'GET' }),
   create: (payload) => request('/workflows', { method: 'POST', body: payload }),
   update: (id, payload) => request(`/workflows/${id}`, { method: 'PUT', body: payload }),
+  delete: (id) => request(`/workflows/${id}`, { method: 'DELETE' }),
+  validate: (payload) => request('/workflows/validate', { method: 'POST', body: payload }),
 }
 
 // Dashboard API
