@@ -54,6 +54,28 @@ const activitySchema = new mongoose.Schema(
       required: false,
       index: true,
     },
+    channel: {
+      type: String,
+      trim: true,
+      default: 'system',
+    },
+    recipient: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    isAiGenerated: {
+      type: Boolean,
+      default: false,
+    },
+    humanApproved: {
+      type: Boolean,
+      default: false,
+    },
+    metadata: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
   },
   {
     timestamps: { createdAt: true, updatedAt: false },

@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import ActivityItem from '../components/ActivityItem.jsx'
 import Alert from '../components/Alert.jsx'
 import Button from '../components/Button.jsx'
+import CommunicationHub from '../components/CommunicationHub.jsx'
 import ConfirmDialog from '../components/ConfirmDialog.jsx'
 import { ErrorState } from '../components/EmptyState.jsx'
 import FollowUpTaskCard from '../components/FollowUpTaskCard.jsx'
@@ -15,7 +16,7 @@ import { useToast } from '../context/ToastContext.jsx'
 function LeadDetailsPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { getLead, deleteLead, analyzeLead } = useLeads()
+  const { getLead, deleteLead, analyzeLead, addActivityToLead, refreshLead } = useLeads()
   const { showToast } = useToast()
   const [pendingDelete, setPendingDelete] = useState(false)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
@@ -50,6 +51,14 @@ function LeadDetailsPage() {
     } finally {
       setIsAnalyzing(false)
     }
+  }
+
+  function handleCommunicationSent(newActivity) {
+    if (newActivity) {
+      addActivityToLead(lead.id, newActivity)
+    }
+    refreshLead(lead.id)
+    showToast(`External communication dispatched for ${lead.name}.`)
   }
 
   return (
@@ -124,6 +133,8 @@ function LeadDetailsPage() {
           </SectionCard>
         </div>
       </div>
+
+      <CommunicationHub lead={lead} onCommunicationSent={handleCommunicationSent} />
 
       <SectionCard
         title="Activity"

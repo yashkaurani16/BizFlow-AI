@@ -149,6 +149,13 @@ export const aiApi = {
   getStatus: () => request('/ai/status', { method: 'GET' }),
 }
 
+// Communications API (Email, WhatsApp, SMS with human review)
+export const communicationsApi = {
+  getStatus: () => request('/communications/status', { method: 'GET' }),
+  generateDraft: (payload) => request('/communications/draft', { method: 'POST', body: payload }),
+  send: (payload) => request('/communications/send', { method: 'POST', body: payload }),
+}
+
 export default {
   getToken,
   setToken,
@@ -161,4 +168,5 @@ export default {
   analyticsApi,
   profileApi,
   aiApi,
+  communicationsApi,
 }

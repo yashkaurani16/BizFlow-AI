@@ -8,6 +8,7 @@ import agentsRoutes from './routes/agentsRoutes.js'
 import aiRoutes from './routes/aiRoutes.js'
 import analyticsRoutes from './routes/analyticsRoutes.js'
 import authRoutes from './routes/authRoutes.js'
+import communicationRoutes from './routes/communicationRoutes.js'
 import dashboardRoutes from './routes/dashboardRoutes.js'
 import healthRoutes from './routes/healthRoutes.js'
 import leadsRoutes from './routes/leadsRoutes.js'
@@ -46,6 +47,7 @@ app.use('/api', healthRoutes)
 app.use('/api/auth', authRoutes)
 app.use('/api/ai', aiRoutes)
 app.use('/api/leads', leadsRoutes)
+app.use('/api/communications', communicationRoutes)
 app.use('/api/agents', agentsRoutes)
 app.use('/api/workflows', workflowsRoutes)
 app.use('/api/dashboard', dashboardRoutes)

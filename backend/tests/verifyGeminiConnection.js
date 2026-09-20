@@ -17,7 +17,7 @@ import { analyzeLead, getAIProviderStatus } from '../src/services/ai/aiService.j
 import { executeAIRequest, generateFallbackAnalysis, getProviderConfig } from '../src/services/ai/providerAdapter.js'
 import { executeNewLeadWorkflow } from '../src/services/workflowEngine.js'
 
-dotenv.config()
+dotenv.config({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../.env') })
 
 async function verifyGeminiIntegration() {
   console.log('==================================================================')

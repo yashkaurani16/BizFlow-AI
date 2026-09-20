@@ -276,9 +276,58 @@ export function LeadsProvider({ children }) {
     }
   }, [])
 
+  const addActivityToLead = useCallback((leadId, activity) => {
+    if (!activity) return
+    const id = leadId?.toString()
+    setLeads((current) =>
+      current.map((lead) => {
+        if (lead.id !== id && lead._id !== id) return lead
+        const formattedActivity = {
+          id: activity.id || activity._id?.toString() || `${id}-act-${Date.now()}`,
+          type: activity.type || 'communication_sent',
+          title: activity.title || 'Communication Dispatched',
+          description: activity.description || '',
+          time: activity.createdAt ? formatDate(new Date(activity.createdAt)) : formatDate(new Date()),
+          status: activity.status || 'Succeeded',
+          channel: activity.channel,
+          recipient: activity.recipient,
+        }
+        return {
+          ...lead,
+          activities: [formattedActivity, ...(lead.activities || [])],
+        }
+      }),
+    )
+  }, [])
+
+  const refreshLead = useCallback(async (id) => {
+    try {
+      const res = await leadsApi.getById(id)
+      if (res && res.success && res.lead) {
+        const normalized = normalizeLead(res.lead)
+        setLeads((current) =>
+          current.map((lead) => (lead.id === id || lead._id === id ? normalized : lead)),
+        )
+        return normalized
+      }
+    } catch (err) {
+      console.warn('[LeadsContext] Failed to refresh lead from API:', err.message)
+    }
+  }, [])
+
   const value = useMemo(
-    () => ({ leads, getLead, addLead, updateLead, deleteLead, analyzeLead, isLoading }),
-    [leads, getLead, addLead, updateLead, deleteLead, analyzeLead, isLoading],
+    () => ({
+      leads,
+      getLead,
+      addLead,
+      updateLead,
+      deleteLead,
+      analyzeLead,
+      addActivityToLead,
+      refreshLead,
+      isLoading,
+    }),
+    [leads, getLead, addLead, updateLead, deleteLead, analyzeLead, addActivityToLead, refreshLead, isLoading],
   )
 
   return <LeadsContext.Provider value={value}>{children}</LeadsContext.Provider>

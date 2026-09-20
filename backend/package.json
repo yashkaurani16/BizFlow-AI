@@ -8,7 +8,9 @@
     "start": "node src/server.js",
     "test": "node tests/geminiStep18.test.js",
     "test:regression": "node tests/step18FullRegression.test.js",
-    "test:step19": "node tests/step19LeadIntelligence.test.js"
+    "test:step19": "node tests/step19LeadIntelligence.test.js",
+    "test:step20": "node tests/step20Communications.test.js",
+    "test:all": "node tests/step20Communications.test.js && node tests/step19LeadIntelligence.test.js && node tests/step18FullRegression.test.js"
   },
   "dependencies": {
     "@google/genai": "^2.23.0",
