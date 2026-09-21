@@ -11,6 +11,7 @@ import emailAdapter from './emailAdapter.js'
 import whatsappAdapter from './whatsappAdapter.js'
 import smsAdapter from './smsAdapter.js'
 import draftService from './draftService.js'
+import resendProvider from './resendProvider.js'
 
 const adapters = {
   email: emailAdapter,
@@ -61,6 +62,7 @@ export async function sendCommunication({
   humanApproved,
   isAiGenerated = false,
   metadata = {},
+  clientOverride = null,
 }) {
   // CRITICAL SAFETY BOUNDARY: Explicit human approval is mandatory
   if (humanApproved !== true) {
@@ -78,6 +80,7 @@ export async function sendCommunication({
       subject,
       content,
       metadata,
+      clientOverride,
     })
 
     return {
@@ -89,7 +92,7 @@ export async function sendCommunication({
     // Preserve typed error while ensuring no credentials or stack traces leak
     const sendError = new Error(err.message || 'Failed to dispatch communication.')
     sendError.code = err.code || 'SEND_FAILED'
-    sendError.statusCode = err.code === 'INVALID_RECIPIENT' || err.code === 'INVALID_CONTENT' || err.code === 'INVALID_SUBJECT' ? 400 : 502
+    sendError.statusCode = err.code === 'INVALID_RECIPIENT' || err.code === 'INVALID_CONTENT' || err.code === 'INVALID_SUBJECT' ? 400 : (err.statusCode || 502)
     sendError.channel = channel
     throw sendError
   }
@@ -100,6 +103,7 @@ export {
   whatsappAdapter,
   smsAdapter,
   draftService,
+  resendProvider,
 }
 
 export default {
@@ -111,4 +115,5 @@ export default {
   whatsappAdapter,
   smsAdapter,
   draftService,
+  resendProvider,
 }

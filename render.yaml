@@ -32,6 +32,8 @@ services:
         sync: false
       - key: EMAIL_PROVIDER
         value: sandbox
+      - key: RESEND_API_KEY
+        sync: false
       - key: WHATSAPP_PROVIDER
         value: sandbox
       - key: SMS_PROVIDER

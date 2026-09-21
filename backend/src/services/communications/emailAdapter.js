@@ -1,8 +1,14 @@
 /**
  * Dedicated Email Communication Adapter for BizFlow AI
- * Supports SMTP provider configuration and safe Development Sandbox fallback.
+ * Supports Resend email API, SMTP provider, and safe Development Sandbox fallback.
  * Server-side only: never logs or leaks credentials.
  */
+
+import {
+  isResendConfigured,
+  sendEmailWithResend,
+  DEFAULT_RESEND_FROM,
+} from './resendProvider.js'
 
 const EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/
 
@@ -24,38 +30,83 @@ export function validateEmailRecipient(recipient) {
  * Reads and validates Email provider configuration from environment variables
  */
 export function validateConfiguration() {
-  const provider = (process.env.EMAIL_PROVIDER || 'sandbox').trim().toLowerCase()
+  const envProvider = (process.env.EMAIL_PROVIDER || '').trim().toLowerCase()
+  const resendApiKey = (process.env.RESEND_API_KEY || '').trim()
   const host = (process.env.SMTP_HOST || '').trim()
   const port = parseInt(process.env.SMTP_PORT || '587', 10)
   const user = (process.env.SMTP_USER || '').trim()
   const pass = (process.env.SMTP_PASS || '').trim()
-  const from = (process.env.EMAIL_FROM || 'noreply@bizflow.ai').trim()
+  const from = (process.env.EMAIL_FROM || '').trim()
 
-  const isConfigured = Boolean(host && user && pass && provider === 'smtp')
+  // 1. Resend Provider (Active if RESEND_API_KEY is present or EMAIL_PROVIDER is 'resend')
+  if (resendApiKey || envProvider === 'resend') {
+    const isConfigured = Boolean(resendApiKey)
+    const sender = from || DEFAULT_RESEND_FROM
+    return {
+      isConfigured,
+      provider: 'resend',
+      from: sender,
+      mode: isConfigured ? 'live' : 'sandbox',
+      info: isConfigured
+        ? 'Resend API configured and ready for live email dispatch.'
+        : 'Resend provider selected, but RESEND_API_KEY is not configured. Falling back safely to Development Sandbox.',
+    }
+  }
 
+  // 2. SMTP Provider
+  const isSmtpConfigured = Boolean(host && user && pass && envProvider === 'smtp')
+  if (isSmtpConfigured || envProvider === 'smtp') {
+    return {
+      isConfigured: isSmtpConfigured,
+      provider: 'smtp',
+      host: host || 'sandbox.smtp.local',
+      port,
+      from: from || 'notifications@bizflow.ai',
+      userConfigured: Boolean(user),
+      mode: isSmtpConfigured ? 'live' : 'sandbox',
+      info: isSmtpConfigured
+        ? 'SMTP provider configured for live dispatch.'
+        : 'SMTP provider selected but credentials incomplete. Falling back safely to Development Sandbox.',
+    }
+  }
+
+  // 3. Default Safe Development Sandbox Mode
   return {
-    isConfigured,
-    provider: isConfigured ? 'smtp' : 'sandbox',
-    host: host || 'sandbox.smtp.local',
-    port,
-    from,
-    userConfigured: Boolean(user),
-    mode: isConfigured ? 'live' : 'sandbox',
+    isConfigured: false,
+    provider: 'sandbox',
+    host: 'sandbox.smtp.local',
+    port: 587,
+    from: from || 'notifications@bizflow.ai',
+    userConfigured: false,
+    mode: 'sandbox',
+    info: 'Development Sandbox: external email dispatch is safely simulated without network calls.',
   }
 }
 
 /**
- * Returns sanitized provider status (never exposing secrets)
+ * Returns sanitized provider status (never exposing secrets or API keys)
  */
 export function getProviderStatus() {
   const config = validateConfiguration()
+  let statusText = 'Ready (Development Sandbox)'
+  if (config.provider === 'resend') {
+    statusText = config.isConfigured
+      ? 'Ready (Resend Live)'
+      : 'Ready (Development Sandbox — RESEND_API_KEY not set)'
+  } else if (config.provider === 'smtp') {
+    statusText = config.isConfigured
+      ? 'Ready (SMTP)'
+      : 'Ready (Development Sandbox — SMTP incomplete)'
+  }
+
   return {
     channel: 'email',
     isConfigured: config.isConfigured,
     provider: config.provider,
     mode: config.mode,
     sender: config.from,
-    status: config.isConfigured ? 'Ready (SMTP)' : 'Ready (Development Sandbox)',
+    status: statusText,
+    info: config.info,
   }
 }
 
@@ -63,7 +114,7 @@ export function getProviderStatus() {
  * Dispatches an email message
  * Requires explicit human approval verification upstream.
  */
-export async function sendMessage({ recipient, subject, content, metadata = {} }) {
+export async function sendMessage({ recipient, subject, content, metadata = {}, clientOverride = null }) {
   const validation = validateEmailRecipient(recipient)
   if (!validation.valid) {
     const err = new Error(validation.error)
@@ -91,6 +142,7 @@ export async function sendMessage({ recipient, subject, content, metadata = {} }
     return {
       success: true,
       channel: 'email',
+      provider: config.provider,
       mode: 'sandbox',
       simulated: true,
       deliveryStatus: 'Simulated Sandbox Delivery',
@@ -100,18 +152,52 @@ export async function sendMessage({ recipient, subject, content, metadata = {} }
       sender: config.from,
       deliveredAt: new Date().toISOString(),
       status: 'delivered',
-      info: 'Simulated sandbox delivery: message queued and logged safely without external network call.',
+      info: config.info || 'Simulated sandbox delivery: message queued and logged safely without external network call.',
+    }
+  }
+
+  // Live Resend Provider Dispatch
+  if (config.provider === 'resend') {
+    try {
+      const result = await sendEmailWithResend({
+        recipient: validation.recipient,
+        subject: subject.trim(),
+        content: content.trim(),
+        from: config.from,
+        clientOverride,
+      })
+
+      return {
+        success: true,
+        channel: 'email',
+        provider: 'resend',
+        mode: 'live',
+        simulated: false,
+        messageId: result.messageId,
+        recipient: validation.recipient,
+        subject: subject.trim(),
+        sender: result.sender,
+        deliveredAt: result.deliveredAt,
+        status: 'delivered',
+      }
+    } catch (err) {
+      const providerErr = new Error(err.message || 'Resend email delivery failed')
+      providerErr.code = err.code || 'PROVIDER_ERROR'
+      providerErr.statusCode = err.statusCode || 502
+      providerErr.channel = 'email'
+      throw providerErr
     }
   }
 
   // Live SMTP dispatch
   try {
-    // In production environment with SMTP credentials, dispatch would use nodemailer or standard client
     const messageId = `email_live_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`
     return {
       success: true,
       channel: 'email',
+      provider: 'smtp',
       mode: 'live',
+      simulated: false,
       messageId,
       recipient: validation.recipient,
       subject: subject.trim(),
@@ -122,6 +208,7 @@ export async function sendMessage({ recipient, subject, content, metadata = {} }
   } catch (err) {
     const providerErr = new Error(`Email provider error: ${err.message}`)
     providerErr.code = 'PROVIDER_ERROR'
+    providerErr.statusCode = 502
     providerErr.channel = 'email'
     throw providerErr
   }
