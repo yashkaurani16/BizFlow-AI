@@ -1,7 +1,15 @@
 const TOKEN_KEY = 'bizflow_ai_token'
 
-export const apiBaseUrl =
-  import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
+function resolveApiBaseUrl() {
+  const rawUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api').trim()
+  const cleanUrl = rawUrl.replace(/\/+$/, '')
+  if (!cleanUrl.endsWith('/api')) {
+    return `${cleanUrl}/api`
+  }
+  return cleanUrl
+}
+
+export const apiBaseUrl = resolveApiBaseUrl()
 
 export function getToken() {
   try {
